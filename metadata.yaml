@@ -1,0 +1,6 @@
+name: astrbot_plugin_active_reply_bot_fliter
+display_name: 关键词静默拦截器
+desc: 用于主动回复的机器人，过滤指定关键词（双向）,并且询问机器人是否保持沉默或者回答.
+version: v1.0.0
+author: LunargentSilverFox
+repo: https://github.com/LunargentSilverFox/astrbot_plugin_active_reply_bot_fliter

@@ -1,0 +1,17 @@
+{
+  "client_filter_words": {
+    "type": "list",
+    "description": "用户消息包含任意关键词时，拦截本次消息。",
+    "default": ["[图片]", "[表情]"]
+  },
+  "bot_filter_words": {
+    "type": "list",
+    "description": "机器人回复包含任意关键词时，清空回复并保持静默。",
+    "default": ["[沉默]", "[silent]"]
+  },
+  "system_prompt_suffix": {
+    "type": "text",
+    "description": "追加到系统提示词末尾的指令。可用 {bot_filter_words} 插入机器人回复过滤词。",
+    "default": "你需要检查消息是否和你有关，可能是其他用户之间的交流。如果无关，则只回复{bot_filter_words}中的任意一个词。"
+  }
+}
