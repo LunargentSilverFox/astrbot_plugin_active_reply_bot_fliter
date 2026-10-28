@@ -1,8 +1,13 @@
 {
   "client_filter_words": {
     "type": "list",
-    "description": "用户消息包含任意关键词时，拦截本次消息。",
-    "default": ["[图片]", "[表情]"]
+    "description": "用户消息包含任意自定义关键词时，拦截本次消息；[图片]、[表情] 由单独的开关控制。",
+    "default": []
+  },
+  "filter_media_messages": {
+    "type": "bool",
+    "description": "默认拦截包含 [图片] 或 [表情] 标记的用户消息。",
+    "default": true
   },
   "bot_filter_words": {
     "type": "list",
