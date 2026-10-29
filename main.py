@@ -2,23 +2,26 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.provider import ProviderRequest
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.api.message_components import ComponentType
+from astrbot.api.message_components import (
+    Face,
+    File,
+    Forward,
+    Image,
+    Record,
+    Video,
+)
 
 @register("active_reply_bot_fliter", "LunargentSilverFox", "用于主动回复的机器人，过滤指定关键词（双向）,并且询问机器人是否保持沉默或者回答.（不支持流式输出）", "1.0.0")
 class active_reply_bot_fliter(Star):
     
     fliter_word_bot = ["[沉默]","[silent]"]#机器人发出的消息中包含该词则视为机器人不回复
     fliter_word_client = []
-    media_message_markers = ("[图片]", "[表情]")
-    # 需要拦截的媒体消息组件类型（图片/表情等不会出现在纯文本里）
-    media_component_types = (
-        ComponentType.Image,
-        ComponentType.Face,
-        ComponentType.Record,
-        ComponentType.Video,
-        ComponentType.File,
-        ComponentType.Forward,
-    )
+    # 媒体消息的文本占位符。用 [表情 作为前缀，可同时匹配 [表情] 与 QQ 官方解析出的 [表情:xxx]
+    media_message_markers = ("[图片]", "[表情")
+    # 需要拦截的媒体消息组件（图片/表情/语音/视频/文件/转发）。
+    # 用 isinstance 判断组件类型，比比较 comp.type 字段更可靠：
+    # comp.type 在部分场景下会被序列化成小写字符串，导致与 ComponentType 枚举比较失败而漏拦截。
+    media_component_classes = (Image, Face, Record, Video, File, Forward)
 
     con = "你需要检查消息是否和你有关，可能是其他用户之间的交流。如果无关，则只回复{bot_filter_words}中的任意一个词。"
 
@@ -72,17 +75,18 @@ class active_reply_bot_fliter(Star):
     async def check_client_msg(self, event: AstrMessageEvent) -> None:
         '''检查是否包含过滤词,如果包含则直接结束一次与bot会话的流程'''
         message = event.get_message_str()
+        outline = event.get_message_outline()
 
-        # 关键：图片/表情等媒体消息不会出现在 get_message_str() 的纯文本里，
-        # 必须检查消息链里各组件的类型，否则纯图片/纯表情消息会被漏过。
+        # 图片/表情等媒体组件不会出现在纯文本里，必须检查消息链里的组件类型。
         contains_media_component = any(
-            getattr(comp, "type", None) in self.media_component_types
+            isinstance(comp, self.media_component_classes)
             for comp in event.get_messages()
         )
 
-        # 兼容：某些场景下文本里会直接出现 [图片]/[表情] 占位符
+        # 兼容文本占位符：纯图片时 get_message_str() 为空，outline 才会出现 [图片]；
+        # QQ 官方等平台会把表情解析成 [表情:xxx] 文本，故用 [表情 前缀匹配。
         contains_media_marker = any(
-            marker in message for marker in self.media_message_markers
+            marker in outline for marker in self.media_message_markers
         )
 
         contains_custom_filter_word = any(
@@ -96,7 +100,7 @@ class active_reply_bot_fliter(Star):
             and (contains_media_component or contains_media_marker)
         ) or contains_custom_filter_word:
             event.stop_event()
-            logger.info(f"已拦截媒体/过滤消息：{event.get_message_outline()}")
+            logger.info(f"已拦截媒体/过滤消息：{outline}")
 
     @filter.on_llm_request()
     async def append_system_prompt(
