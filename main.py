@@ -16,12 +16,16 @@ class active_reply_bot_fliter(Star):
     
     fliter_word_bot = ["[沉默]","[silent]"]#机器人发出的消息中包含该词则视为机器人不回复
     fliter_word_client = []
-    # 媒体消息的文本占位符。用 [表情 作为前缀，可同时匹配 [表情] 与 QQ 官方解析出的 [表情:xxx]
-    media_message_markers = ("[图片]", "[表情")
-    # 需要拦截的媒体消息组件（图片/表情/语音/视频/文件/转发）。
+    # 媒体消息的文本占位符（图片；语音/视频/文件/转发用组件类型判断）
+    media_message_markers = ("[图片]",)
+    # 表情的文本占位符。用 [表情 作为前缀，可同时匹配 [表情] 与 QQ 官方解析出的 [表情:xxx]
+    face_message_markers = ("[表情",)
+    # 需要拦截的媒体消息组件（图片/语音/视频/文件/转发，不含表情）。
     # 用 isinstance 判断组件类型，比比较 comp.type 字段更可靠：
     # comp.type 在部分场景下会被序列化成小写字符串，导致与 ComponentType 枚举比较失败而漏拦截。
-    media_component_classes = (Image, Face, Record, Video, File, Forward)
+    media_component_classes = (Image, Record, Video, File, Forward)
+    # 表情组件（QQ 官方等平台的表情是文本，用 face_message_markers 匹配）
+    face_component_classes = (Face,)
 
     con = "你需要检查消息是否和你有关，可能是其他用户之间的交流。如果无关，则只回复{bot_filter_words}中的任意一个词。"
 
@@ -43,6 +47,10 @@ class active_reply_bot_fliter(Star):
         if not isinstance(self.filter_media_messages, bool):
             logger.warning("配置项 filter_media_messages 必须是布尔值，使用默认值 True。")
             self.filter_media_messages = True
+        self.filter_face_messages = config.get("filter_face_messages", True)
+        if not isinstance(self.filter_face_messages, bool):
+            logger.warning("配置项 filter_face_messages 必须是布尔值，使用默认值 True。")
+            self.filter_face_messages = True
         prompt_suffix = config.get("system_prompt_suffix", type(self).con)
         if not isinstance(prompt_suffix, str):
             logger.warning("配置项 system_prompt_suffix 必须是文本，使用默认值。")
@@ -73,34 +81,37 @@ class active_reply_bot_fliter(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def check_client_msg(self, event: AstrMessageEvent) -> None:
-        '''检查是否包含过滤词,如果包含则直接结束一次与bot会话的流程'''
+        '''检查是否包含过滤词/媒体/表情，如果包含则直接结束一次与bot会话的流程'''
         message = event.get_message_str()
         outline = event.get_message_outline()
+        comps = event.get_messages()
 
-        # 图片/表情等媒体组件不会出现在纯文本里，必须检查消息链里的组件类型。
-        contains_media_component = any(
-            isinstance(comp, self.media_component_classes)
-            for comp in event.get_messages()
-        )
+        # 媒体消息（图片/语音/视频/文件/转发）。
+        # 媒体组件不会出现在纯文本里，必须检查消息链里的组件类型；
+        # 纯图片时 get_message_str() 为空，outline 才会出现 [图片]。
+        contains_media = any(
+            isinstance(comp, self.media_component_classes) for comp in comps
+        ) or any(marker in outline for marker in self.media_message_markers)
 
-        # 兼容文本占位符：纯图片时 get_message_str() 为空，outline 才会出现 [图片]；
-        # QQ 官方等平台会把表情解析成 [表情:xxx] 文本，故用 [表情 前缀匹配。
-        contains_media_marker = any(
-            marker in outline for marker in self.media_message_markers
-        )
+        # 表情消息（Face 组件，或 QQ 官方等平台解析出的 [表情:xxx] 文本）
+        contains_face = any(
+            isinstance(comp, self.face_component_classes) for comp in comps
+        ) or any(marker in outline for marker in self.face_message_markers)
 
         contains_custom_filter_word = any(
             word in message
             for word in self.fliter_word_client
             if word not in self.media_message_markers
+            and word not in self.face_message_markers
         )
 
         if (
-            self.filter_media_messages
-            and (contains_media_component or contains_media_marker)
-        ) or contains_custom_filter_word:
+            (self.filter_media_messages and contains_media)
+            or (self.filter_face_messages and contains_face)
+            or contains_custom_filter_word
+        ):
             event.stop_event()
-            logger.info(f"已拦截媒体/过滤消息：{outline}")
+            logger.info(f"已拦截媒体/表情/过滤消息：{outline}")
 
     @filter.on_llm_request()
     async def append_system_prompt(

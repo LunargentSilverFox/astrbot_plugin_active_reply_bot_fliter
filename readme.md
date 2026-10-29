@@ -20,8 +20,9 @@
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `filter_media_messages` | `true` | 是否默认拦截包含 `[图片]` 或 `[表情]` 标记的消息。 |
-| `client_filter_words` | 空列表 | 用户消息包含其中任意自定义关键词时，拦截本次消息。媒体标记由上方开关控制。 |
+| `filter_media_messages` | `true` | 是否拦截图片/语音/视频/文件/转发等媒体消息。 |
+| `filter_face_messages` | `true` | 是否拦截表情（emoji）消息。 |
+| `client_filter_words` | 空列表 | 用户消息包含其中任意自定义关键词时，拦截本次消息。 |
 | `bot_filter_words` | `[沉默]`、`[silent]` | 机器人回复包含其中任意词时，清空回复。 |
 | `system_prompt_suffix` | 检查消息是否与机器人有关的提示词 | 追加到系统提示词末尾的文本。可使用 `{bot_filter_words}` 插入当前机器人过滤词。 |
 

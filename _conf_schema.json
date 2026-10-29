@@ -6,7 +6,12 @@
   },
   "filter_media_messages": {
     "type": "bool",
-    "description": "默认拦截包含 [图片] 或 [表情] 标记的用户消息。",
+    "description": "拦截图片/语音/视频/文件/转发等媒体消息。",
+    "default": true
+  },
+  "filter_face_messages": {
+    "type": "bool",
+    "description": "拦截表情（emoji）消息。",
     "default": true
   },
   "bot_filter_words": {
