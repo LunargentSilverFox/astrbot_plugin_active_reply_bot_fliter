@@ -2,7 +2,7 @@ name: astrbot_plugin_active_reply_bot_fliter
 display_name: 关键词静默拦截器
 short_desc: 过滤关键词与图片/表情消息，避免 AI 对无关内容瞎猜。
 desc: 用于主动回复的机器人，支持双向关键词过滤（用户消息拦截 + 机器人回复静默），默认拦截图片/表情等媒体消息，并可通过自定义系统提示词让机器人判断是否保持沉默。
-version: 1.0.0
+version: 1.0.1
 author: LunargentSilverFox
 repo: https://github.com/LunargentSilverFox/astrbot_plugin_active_reply_bot_fliter
 support_platforms:

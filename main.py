@@ -11,7 +11,7 @@ from astrbot.api.message_components import (
     Video,
 )
 
-@register("active_reply_bot_fliter", "LunargentSilverFox", "用于主动回复的机器人，过滤指定关键词（双向）,并且询问机器人是否保持沉默或者回答.（不支持流式输出）", "1.0.0")
+@register("active_reply_bot_fliter", "LunargentSilverFox", "用于主动回复的机器人，过滤指定关键词（双向）,并且询问机器人是否保持沉默或者回答.（不支持流式输出）", "1.0.1")
 class active_reply_bot_fliter(Star):
     
     fliter_word_bot = ["[沉默]","[silent]"]#机器人发出的消息中包含该词则视为机器人不回复
@@ -79,9 +79,7 @@ class active_reply_bot_fliter(Star):
             if isinstance(word, str) and word.strip()
         ]
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def check_client_msg(self, event: AstrMessageEvent) -> None:
-        '''检查是否包含过滤词/媒体/表情，如果包含则直接结束一次与bot会话的流程'''
+    def _client_msg_matches_filter(self, event: AstrMessageEvent) -> bool:
         message = event.get_message_str()
         outline = event.get_message_outline()
         comps = event.get_messages()
@@ -105,13 +103,47 @@ class active_reply_bot_fliter(Star):
             and word not in self.face_message_markers
         )
 
-        if (
+        return (
             (self.filter_media_messages and contains_media)
             or (self.filter_face_messages and contains_face)
             or contains_custom_filter_word
-        ):
-            event.stop_event()
-            logger.info(f"已拦截媒体/表情/过滤消息：{outline}")
+        )
+
+    def _filter_client_msg(self, event: AstrMessageEvent) -> bool:
+        """拦截包含媒体、表情或自定义关键词的用户消息。"""
+        if event.is_stopped():
+            return True
+        if not self._client_msg_matches_filter(event):
+            return False
+
+        event.stop_event()
+        logger.info(f"已拦截媒体/表情/过滤消息：{event.get_message_outline()}")
+        return True
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    async def check_client_msg(self, event: AstrMessageEvent) -> None:
+        """尽早拦截用户消息中的媒体、表情或自定义关键词。"""
+        self._filter_client_msg(event)
+
+    @filter.on_waiting_llm_request()
+    async def check_before_media_processing(self, event: AstrMessageEvent) -> None:
+        """附件处理前再次检查，避免漏过的图片进入 LLM 图片处理流程。"""
+        if event.is_stopped() or not self._client_msg_matches_filter(event):
+            return
+
+        request = event.get_extra("provider_request")
+        if isinstance(request, ProviderRequest):
+            request.image_urls.clear()
+            request.audio_urls.clear()
+            request.prompt = ""
+            event.set_extra("_active_reply_bot_filtered_request", True)
+            logger.info(
+                "已拦截嵌套 LLM 请求中的媒体/表情/过滤消息："
+                f"{event.get_message_outline()}"
+            )
+            return
+
+        self._filter_client_msg(event)
 
     @filter.on_llm_request()
     async def append_system_prompt(
@@ -132,6 +164,12 @@ class active_reply_bot_fliter(Star):
     async def check_bot_msg(self, event: AstrMessageEvent) -> None:
         '''检查是否包含过滤词，如果包含则截断并控制台打印：bot不回复'''
         result = event.get_result()
+        if event.get_extra("_active_reply_bot_filtered_request"):
+            if result is not None and result.chain is not None:
+                result.chain.clear()
+            logger.info("已丢弃被过滤嵌套 LLM 请求的回复。")
+            return
+
         if result is None or not result.is_llm_result():
             return
 
